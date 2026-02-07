@@ -1,0 +1,82 @@
+# Solution Brief: DesignLog Kanban Widget
+**Version:** 4.0 (Kanban Mission Control)
+**Date:** October 26, 2023
+**Type:** Figma Widget Solution
+
+---
+
+## 1. Executive Summary
+**DesignLog Kanban** is a visual project management widget that resides directly on the Figma canvas. It acts as the central "Mission Control" for the file, organizing Key Frames into columns based on their lifecycle status.
+
+Instead of a static list or individual sticky notes, users interact with a **Kanban Board**. This allows designers and developers to visualize the "Flow" of the project—seeing exactly which frames are in *Research*, which are *In Review*, and which are *Ready for Dev*—all while monitoring version health and external links from a single view.
+
+---
+
+## 2. Functional Requirements
+
+### A. The "Mission Control" Registry
+* **Multi-Node Tracking:** The widget serves as a registry for "Key Frames." Users select a frame on the canvas and click "Add to Board" to register it.
+* **Viewport Navigation:** Clicking a "Target" icon on any card immediately scrolls and zooms the Figma viewport to center that specific frame.
+* **Orphan Detection:** If a tracked frame is deleted from the file, the widget flags the corresponding card as "🚫 Missing."
+
+### B. Lifecycle Status (The Columns)
+The board organizes frames into a fixed workflow:
+1.  **🟣 Research:** Backlog, mood boards, screenshots, and raw data.
+2.  **🔵 Exploration:** Wireframes, messy iterations, and "sandbox" work.
+3.  **🟠 In Review:** Designs currently undergoing critique or stakeholder feedback.
+4.  **🟢 Ready for Dev:** Handover-ready screens (specs, redlines, assets finalized).
+5.  **⚫ Archived:** Old versions kept for reference.
+
+### C. "Health Check" & Overwrite Protection
+* **Trigger:** The validation logic runs when the widget loads or upon user interaction (e.g., clicking "Refresh").
+* **Action:** It compares the current state of the frame against the snapshot taken when it entered its current column.
+* **Visual:** If a frame marked "Ready for Dev" has been modified (Hash Mismatch), a **⚠️ Warning Badge** appears on the card to alert developers of potential drift.
+
+### D. Contextual Linking
+* Cards support external URLs (Jira, Linear, GitHub).
+* The widget parses these URLs to display provider-specific icons on the card face.
+
+---
+
+## 3. Visual Architecture: The Board
+
+The widget renders a horizontal layout with fixed columns.
+
+### The Card UI
+Each tracked frame is represented as a card containing:
+* **Header:** Frame Name (e.g., "Checkout V3").
+* **Body:**
+    * **Avatar:** Photo of the user who last changed the status.
+    * **Link Icon:** Clickable icon for external tickets (Jira/Linear).
+    * **Status Indicators:** `✅ Synced` or `⚠️ Modified`.
+* **Footer Actions:**
+    * `Jump to Frame`: Zooms viewport to the node.
+    * `Move Previous (<)` / `Move Next (>)`: Changes status.
+
+---
+
+## 4. Interaction Design
+*Note: The Figma Widget API does not support drag-and-drop interactions. We utilize a "Click-to-Advance" model.*
+
+1.  **Advancing Status:**
+    * Users click the **Right Chevron (`>`)** on a card to move it to the next column (e.g., *Exploration* $\rightarrow$ *In Review*).
+    * **Snapshot Trigger:** Moving a card triggers the Hashing function, locking in the state of the frame at that moment.
+
+2.  **Drill-Down Details:**
+    * Clicking the body of the card opens an overlay or expanded view containing the full history log (who moved it and when) and inputs for editing links.
+
+---
+
+## 5. Technical Logic
+
+### A. Rendering Strategy
+The widget uses `useSyncedState` to store a flat array of items, which are filtered at render time into columns.
+
+```typescript
+// Render Concept
+const columns = {
+  RESEARCH: items.filter(i => i.status === 'RESEARCH'),
+  EXPLORATION: items.filter(i => i.status === 'EXPLORATION'),
+  READY_FOR_DEV: items.filter(i => i.status === 'READY_FOR_DEV'),
+  // ...
+};

@@ -1,0 +1,23 @@
+{
+  "name": "DesignLog Kanban",
+  "id": "designlog-kanban-mission-control",
+  "api": "1.0.0",
+  "main": "code.js",
+  "ui": "",
+  "capabilities": [],
+  "enableProposedApi": false,
+  "editorType": [
+    "figma",
+    "figjam"
+  ],
+  "containsWidget": true,
+  "widgetApi": "1.0.0",
+  "permissions": [
+    "currentuser"
+  ],
+  "networkAccess": {
+    "allowedDomains": [
+      "none"
+    ]
+  }
+}
