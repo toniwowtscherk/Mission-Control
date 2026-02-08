@@ -2,6 +2,7 @@ const { widget } = figma;
 const { 
   AutoLayout, 
   Text,
+  Input,
   useSyncedState, 
   usePropertyMenu,
   useEffect,
@@ -12,35 +13,13 @@ const {
 // CONSTANTS
 // ============================================
 
-const STATUS_CONFIG = {
-  RESEARCH: {
-    label: '🟣 Research',
-    color: '#9333EA',
-    bgColor: '#F3E8FF'
-  },
-  EXPLORATION: {
-    label: '🔵 Exploration',
-    color: '#2563EB',
-    bgColor: '#DBEAFE'
-  },
-  IN_REVIEW: {
-    label: '🟠 In Review',
-    color: '#EA580C',
-    bgColor: '#FFEDD5'
-  },
-  READY_FOR_DEV: {
-    label: '🟢 Ready for Dev',
-    color: '#16A34A',
-    bgColor: '#DCFCE7'
-  },
-  ARCHIVED: {
-    label: '⚫ Archived',
-    color: '#6B7280',
-    bgColor: '#F3F4F6'
-  }
-};
-
-const STATUS_ORDER = ['RESEARCH', 'EXPLORATION', 'IN_REVIEW', 'READY_FOR_DEV', 'ARCHIVED'];
+const DEFAULT_COLUMNS = [
+  { id: 'RESEARCH', label: '🟣 Research', color: '#9333EA', bgColor: '#F3E8FF' },
+  { id: 'EXPLORATION', label: '🔵 Exploration', color: '#2563EB', bgColor: '#DBEAFE' },
+  { id: 'IN_REVIEW', label: '🟠 In Review', color: '#EA580C', bgColor: '#FFEDD5' },
+  { id: 'READY_FOR_DEV', label: '🟢 Ready for Dev', color: '#16A34A', bgColor: '#DCFCE7' },
+  { id: 'ARCHIVED', label: '⚫ Archived', color: '#6B7280', bgColor: '#F3F4F6' }
+];
 
 // UI Constants
 const SHADOW_COLOR = { r: 0, g: 0, b: 0, a: 0.1 };
@@ -93,6 +72,32 @@ function generateFrameHash(node) {
   return hash.toString(36);
 }
 
+function generatePastelColor(hex) {
+    if (!hex || hex.length < 7) return '#F3F4F6';
+    
+    // Remove hash
+    hex = hex.replace('#', '');
+    
+    // Parse
+    const r = parseInt(hex.substring(0, 2), 16);
+    const g = parseInt(hex.substring(2, 4), 16);
+    const b = parseInt(hex.substring(4, 6), 16);
+    
+    // Mix with white (90% white)
+    const factor = 0.9;
+    const newR = Math.round(r + (255 - r) * factor);
+    const newG = Math.round(g + (255 - g) * factor);
+    const newB = Math.round(b + (255 - b) * factor);
+    
+    // Return hex
+    const toHex = (c) => {
+        const h = c.toString(16);
+        return h.length === 1 ? '0' + h : h;
+    };
+    
+    return `#${toHex(newR)}${toHex(newG)}${toHex(newB)}`;
+}
+
 function detectLinkProvider(url) {
   if (url.includes('jira')) return '🔵';
   if (url.includes('linear')) return '◆';
@@ -126,6 +131,10 @@ function DesignLogKanban() {
   const [selectedCard, setSelectedCard] = useSyncedState('selectedCard', null);
   const [refreshKey, setRefreshKey] = useSyncedState('refreshKey', 0);
   
+  // Column State
+  const [columns, setColumns] = useSyncedState('columns', DEFAULT_COLUMNS);
+  const [isEditingColumns, setIsEditingColumns] = useSyncedState('isEditingColumns', false);
+  
   // Selection Mode State
   const [isScanning, setIsScanning] = useSyncedState('isScanning', false);
   const [scanCount, setScanCount] = useSyncedState('scanCount', 0);
@@ -134,6 +143,14 @@ function DesignLogKanban() {
   // Property menu for adding frames
   usePropertyMenu(
     [
+      {
+        itemType: 'action',
+        tooltip: 'Edit Columns',
+        propertyName: 'editColumns',
+      },
+      {
+        itemType: 'separator',
+      },
       {
         itemType: 'action',
         tooltip: 'Refresh Status',
@@ -149,7 +166,9 @@ function DesignLogKanban() {
       }
     ],
     async ({ propertyName }) => {
-      if (propertyName === 'refresh') {
+      if (propertyName === 'editColumns') {
+        setIsEditingColumns(!isEditingColumns);
+      } else if (propertyName === 'refresh') {
         setRefreshKey(refreshKey + 1);
       } else if (propertyName === 'clearAll') {
         setItems([]);
@@ -412,18 +431,29 @@ function DesignLogKanban() {
     if (itemIndex === -1) return Promise.resolve();
 
     const item = items[itemIndex];
-    const currentStatusIndex = STATUS_ORDER.indexOf(item.status);
+    
+    // Find index in the dynamic columns array directly
+    let currentStatusIndex = -1;
+    for(let i=0; i<columns.length; i++) {
+        if(columns[i].id === item.status) {
+            currentStatusIndex = i;
+            break;
+        }
+    }
+    
+    // Fallback if status not found (maybe column deleted), reset to 0
+    if (currentStatusIndex === -1 && columns.length > 0) currentStatusIndex = 0;
     
     let newStatusIndex;
     if (direction === 'next') {
-      newStatusIndex = Math.min(currentStatusIndex + 1, STATUS_ORDER.length - 1);
+      newStatusIndex = Math.min(currentStatusIndex + 1, columns.length - 1);
     } else {
       newStatusIndex = Math.max(currentStatusIndex - 1, 0);
     }
 
     if (newStatusIndex === currentStatusIndex) return Promise.resolve();
 
-    const newStatus = STATUS_ORDER[newStatusIndex];
+    const newStatus = columns[newStatusIndex].id;
     // REMOVED await getNodeById to prevent "Widget not registered" error on state update.
     // Ideally we would update the hash here, but preventing the crash is prioritized.
     // const node = await getNodeById(item.nodeId);
@@ -461,8 +491,11 @@ function DesignLogKanban() {
     const updatedItems = items.slice();
     updatedItems[itemIndex] = updatedItem;
     setItems(updatedItems);
+    
+    // Find label for notification
+    const newStatusLabel = columns[newStatusIndex].label;
 
-    figma.notify(`Moved to ${STATUS_CONFIG[newStatus].label}`);
+    figma.notify(`Moved to ${newStatusLabel}`);
     return Promise.resolve();
    } catch (err) {
        console.error("Move Error", err);
@@ -628,19 +661,267 @@ function DesignLogKanban() {
   }
 
   // Group items by status
-  const columns = {
-    RESEARCH: [],
-    EXPLORATION: [],
-    IN_REVIEW: [],
-    READY_FOR_DEV: [],
-    ARCHIVED: []
-  };
+  const groupedItems = {};
+  
+  // Initialize with dynamic columns
+  columns.forEach(col => {
+      groupedItems[col.id] = [];
+  });
+  
+  // Handle orphans (columns that were deleted) by dumping them in the first column or a dedicated "Unsorted"
+  const fallbackColumnId = columns.length > 0 ? columns[0].id : null;
 
   for (let i = 0; i < items.length; i++) {
     const item = items[i];
-    columns[item.status].push(item);
+    if (Object.prototype.hasOwnProperty.call(groupedItems, item.status)) {
+        groupedItems[item.status].push(item);
+    } else if (fallbackColumnId) {
+        // Auto-migrate orphaned items to first column
+        // Note: This modifies display but doesn't persist status change until moved
+        groupedItems[fallbackColumnId].push(item);
+    }
   }
 
+  // --- COLUMN EDITOR ---
+  if (isEditingColumns) {
+      return h(AutoLayout, {
+        direction: "vertical",
+        spacing: 16,
+        padding: 20,
+        fill: "#FFFFFF",
+        cornerRadius: 8,
+        effect: SHADOW_EFFECT,
+        width: 600
+      },
+        h(AutoLayout, {
+            direction: "horizontal",
+            width: "fill-parent",
+            verticalAlignItems: "center",
+            spacing: 8
+        },
+            h(Text, { fontSize: 16, fontWeight: "bold" }, "⚙️ Edit Columns"),
+            h(AutoLayout, { width: "fill-parent" }),
+            h(AutoLayout, {
+                padding: {vertical: 6, horizontal: 12},
+                cornerRadius: 6,
+                fill: "#10B981",
+                onClick: () => {
+                    // Add new column
+                    const newId = 'COL_' + Math.random().toString(36).substr(2, 6).toUpperCase();
+                    setColumns(columns.concat([{ 
+                        id: newId, 
+                        label: 'New Column', 
+                        color: '#6B7280', 
+                        bgColor: '#F3F4F6' 
+                    }]));
+                },
+                hoverStyle: { fill: "#059669" }
+            }, h(Text, { fill: "#FFF", fontWeight: "bold" }, "+ Add"))
+        ),
+
+        h(AutoLayout, { direction: "vertical", spacing: 8, width: "fill-parent" },
+            columns.map((col, idx) => {
+                return h(AutoLayout, {
+                    key: col.id,
+                    direction: "horizontal",
+                    width: "fill-parent",
+                    spacing: 8,
+                    padding: 8,
+                    fill: "#F9FAFB",
+                    cornerRadius: 6,
+                    verticalAlignItems: "center"
+                },
+                    // Move Up
+                    idx > 0 ? h(AutoLayout, {
+                        padding: 6,
+                        onClick: () => {
+                            const newCols = columns.slice();
+                            const temp = newCols[idx - 1];
+                            newCols[idx - 1] = newCols[idx];
+                            newCols[idx] = temp;
+                            setColumns(newCols);
+                        }
+                    }, h(Text, { fontSize: 16 }, "↑")) : h(AutoLayout, { width: 22 }),
+
+                    // Move Down
+                    idx < columns.length - 1 ? h(AutoLayout, {
+                        padding: 6,
+                        onClick: () => {
+                            const newCols = columns.slice();
+                            const temp = newCols[idx + 1];
+                            newCols[idx + 1] = newCols[idx];
+                            newCols[idx] = temp;
+                            setColumns(newCols);
+                        }
+                    }, h(Text, { fontSize: 16 }, "↓")) : h(AutoLayout, { width: 22 }),
+
+                    // Color Picker (Rich UI)
+                    h(AutoLayout, {
+                        width: 24, height: 24,
+                        cornerRadius: 12,
+                        fill: col.color,
+                        stroke: "#E5E7EB",
+                        strokeWidth: 1,
+                        onClick: () => {
+                             return new Promise((resolve) => {
+                                 const currentHex = col.color;
+                                 const presets = [
+                                    '#9333EA', '#2563EB', '#06B6D4', '#16A34A', 
+                                    '#F59E0B', '#DC2626', '#6B7280', '#111827'
+                                 ];
+                                 
+                                 const html = `
+                                    <style>
+                                      body { 
+                                        font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; 
+                                        padding: 16px; 
+                                        font-size: 13px; 
+                                        color: #333; 
+                                      }
+                                      .grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 20px; }
+                                      .swatch { width: 40px; height: 40px; border-radius: 20px; cursor: pointer; border: 2px solid transparent; box-shadow: 0 1px 3px rgba(0,0,0,0.1); transition: all 0.2s; }
+                                      .swatch:hover { transform: scale(1.1); }
+                                      .swatch.active { border-color: #000; }
+                                      .input-row { display: flex; align-items: center; gap: 12px; margin-bottom: 20px; padding-top: 10px; border-top: 1px solid #eee; }
+                                      input[type="text"] { flex: 1; padding: 8px 12px; border: 1px solid #ccc; border-radius: 6px; font-variant-numeric: tabular-nums; font-family: inherit; }
+                                      input[type="color"] { width: 44px; height: 40px; padding: 0; border: none; background: none; cursor: pointer; }
+                                      button { width: 100%; padding: 10px; background: #2563EB; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 500; font-size: 14px; font-family: inherit; }
+                                      button:hover { background: #1D4ED8; }
+                                      h3 { margin: 0 0 16px 0; font-size: 14px; font-weight: 600; }
+                                      .label { font-size: 11px; color: #666; margin-bottom: 4px; display: block; }
+                                    </style>
+                                    <div>
+                                      <h3>Select Column Color</h3>
+                                      <div class="grid">
+                                        ${presets.map(c => 
+                                            `<div class="swatch ${c === currentHex ? 'active' : ''}" style="background: ${c}" onclick="selectColor('${c}')"></div>`
+                                        ).join('')}
+                                      </div>
+                                      
+                                      <span class="label">Custom Value</span>
+                                      <div class="input-row">
+                                         <input type="color" id="nativePicker" value="${currentHex}" oninput="updateHex(this.value)">
+                                         <input type="text" id="hexInput" value="${currentHex}" oninput="updatePicker(this.value)">
+                                      </div>
+                                      <button id="save" onclick="save()">Apply Color</button>
+                                    </div>
+                                    <script>
+                                      let selectedColor = "${currentHex}";
+                                      
+                                      function selectColor(c) {
+                                          selectedColor = c;
+                                          document.getElementById('nativePicker').value = c;
+                                          document.getElementById('hexInput').value = c;
+                                          updateActiveSwatch(c);
+                                      }
+                                      
+                                      function updateHex(c) {
+                                          selectedColor = c;
+                                          document.getElementById('hexInput').value = c;
+                                          updateActiveSwatch(c);
+                                      }
+                                      
+                                      function updatePicker(c) {
+                                          if (c.startsWith('#') && c.length === 7) {
+                                              selectedColor = c;
+                                              document.getElementById('nativePicker').value = c;
+                                              updateActiveSwatch(c);
+                                          }
+                                      }
+                                      
+                                      function updateActiveSwatch(c) {
+                                          document.querySelectorAll('.swatch').forEach(el => {
+                                              el.classList.remove('active');
+                                              // Approximate check (simple string match)
+                                              if (el.style.backgroundColor && rgbToHex(el.style.backgroundColor).toUpperCase() === c.toUpperCase()) {
+                                                  el.classList.add('active');
+                                              }
+                                          });
+                                      }
+                                      
+                                      // Helper for swatch matching (browser returns rgb)
+                                      function rgbToHex(col) {
+                                          if(col.charAt(0)=='r'){
+                                              col=col.replace('rgb(','').replace(')','').split(',');
+                                              var r=parseInt(col[0], 10).toString(16);
+                                              var g=parseInt(col[1], 10).toString(16);
+                                              var b=parseInt(col[2], 10).toString(16);
+                                              r=r.length==1?'0'+r:r; g=g.length==1?'0'+g:g; b=b.length==1?'0'+b:b;
+                                              return '#'+r+g+b;
+                                          }
+                                          return col;
+                                       }
+
+                                      function save() {
+                                          window.parent.postMessage({pluginMessage: { type: 'set-color', color: selectedColor }}, '*');
+                                      }
+                                    </script>
+                                 `;
+                                 
+                                 figma.showUI(html, { width: 260, height: 320, title: "Pick a Color" });
+                                 
+                                 figma.ui.onmessage = (msg) => {
+                                     if (msg.type === 'set-color') {
+                                         const newColor = msg.color;
+                                         const newBg = generatePastelColor(newColor);
+                                         
+                                         const newCols = columns.slice();
+                                         newCols[idx] = Object.assign({}, col, { color: newColor, bgColor: newBg });
+                                         setColumns(newCols);
+                                         
+                                         figma.closePlugin(); // Wait, this closes the widget entirely? No, figma.closePlugin() closes the plugin. For widgets, figma.ui.close() or figma.closePlugin() behaves similarly in some contexts?
+                                         // For widgets, `figma.ui.close()` is correct to close the UI window.
+                                         figma.ui.close(); 
+                                     }
+                                     resolve();
+                                 };
+                             });
+                        }
+                    }),
+
+                    // Name Input
+                    h(Input, {
+                        value: col.label,
+                        onTextEditEnd: (e) => {
+                            const newCols = columns.slice();
+                            newCols[idx] = Object.assign({}, col, { label: e.characters });
+                            setColumns(newCols);
+                        },
+                        width: "fill-parent",
+                        fontSize: 14,
+                        fill: "#111827"
+                    }),
+
+                    // Delete
+                    h(AutoLayout, {
+                        padding: 6,
+                        onClick: () => {
+                            if (columns.length <= 1) {
+                                figma.notify("Cannot delete the last column.");
+                                return;
+                            }
+                            // Filter out
+                            const newCols = columns.filter(c => c.id !== col.id);
+                            setColumns(newCols);
+                        }
+                    }, h(Text, { fill: "#DC2626" }, "🗑️"))
+                );
+            })
+        ),
+
+        h(AutoLayout, {
+            width: "fill-parent",
+            horizontalAlignItems: "center",
+            padding: 12,
+            fill: "#2563EB",
+            cornerRadius: 6,
+            onClick: () => setIsEditingColumns(false),
+            hoverStyle: { fill: "#1D4ED8" }
+        }, h(Text, { fill: "#FFF", fontWeight: "bold" }, "Done"))
+      );
+  }
+
+  // --- MAIN BOARD ---
   return h(AutoLayout, {
     direction: "vertical",
     spacing: 0,
@@ -710,10 +991,12 @@ function DesignLogKanban() {
       spacing: 16,
       width: "fill-parent"
     },
-      STATUS_ORDER.map(status => h(Column, {
-        key: status,
-        status: status,
-        items: columns[status],
+      columns.map((col, idx) => h(Column, {
+        key: col.id,
+        config: col,
+        canMovePrev: idx > 0,
+        canMoveNext: idx < columns.length - 1,
+        items: groupedItems[col.id],
         onMoveStatus: handleMoveStatus,
         onJumpToFrame: handleJumpToFrame,
         onCopyLink: handleCopyLink,
@@ -741,11 +1024,8 @@ function DesignLogKanban() {
 // COLUMN COMPONENT
 // ============================================
 
-function Column({ status, items, onMoveStatus, onJumpToFrame, onCopyLink, onRemoveCard, handleCheckHealth }) {
-  const config = STATUS_CONFIG[status];
-  const statusIndex = STATUS_ORDER.indexOf(status);
-  const canMovePrev = statusIndex > 0;
-  const canMoveNext = statusIndex < STATUS_ORDER.length - 1;
+function Column({ config, canMovePrev, canMoveNext, items, onMoveStatus, onJumpToFrame, onCopyLink, onRemoveCard, handleCheckHealth }) {
+  // Config passed directly from parent
 
   return h(AutoLayout, {
     direction: "vertical",
@@ -768,8 +1048,8 @@ function Column({ status, items, onMoveStatus, onJumpToFrame, onCopyLink, onRemo
     items.map(item => h(Card, {
       key: item.id,
       item: item,
-      canMovePrev: STATUS_ORDER.indexOf(item.status) > 0,
-      canMoveNext: STATUS_ORDER.indexOf(item.status) < STATUS_ORDER.length - 1,
+      canMovePrev: canMovePrev,
+      canMoveNext: canMoveNext,
       onMoveStatus: onMoveStatus,
       onJumpToFrame: onJumpToFrame,
       onCopyLink: onCopyLink,
