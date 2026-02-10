@@ -1141,19 +1141,19 @@ function Card({ item, canMovePrev, canMoveNext, onMoveStatus, onJumpToFrame, onC
         padding: BUTTON_PADDING,
         fill: "#F3F4F6",
         cornerRadius: 3,
-        tooltip: "Click to Jump (Design Mode) / Cmd+Click Link (Dev Mode)",
-        onClick: () => {
-          return onJumpToFrame(item.nodeId);
-        },
         hoverStyle: BUTTON_HOVER
       },
-        h(Text, Object.assign({ 
+        h(Text, { 
           fontSize: 10, 
-          fill: "#374151"
-        }, figma.fileKey ? { 
-            // Using standard HTTPS link ensures visibility in Dev Mode 'Properties' panel
-            href: `https://www.figma.com/file/${figma.fileKey}?node-id=${item.nodeId}`
-        } : {}), "🎯 Jump")
+          fill: "#374151",
+          tooltip: "Click to Jump (Design Mode) / Cmd+Click Link (Dev Mode)",
+          onClick: () => {
+            return onJumpToFrame(item.nodeId);
+          },
+          href: figma.fileKey 
+            ? `https://www.figma.com/file/${figma.fileKey}?node-id=${item.nodeId}`
+            : `https://www.figma.com/` // Fallback to ensure link indicator appears if fileKey is missing
+        }, "🎯 Jump")
       ),
 
       h(AutoLayout, {
