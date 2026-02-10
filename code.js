@@ -214,6 +214,9 @@ function DesignLogKanban() {
     figma.notify("Selection Mode Active: Select frames on canvas to add them...", { timeout: 2000 });
 
     const checkSelection = () => {
+       // Safety: Ensure figma.currentPage exists and is accessible
+       if (!figma.currentPage) return;
+
        const selection = figma.currentPage.selection;
        
        // If the selection is ONLY the widget, we ignore it
@@ -248,7 +251,7 @@ function DesignLogKanban() {
             }
           }
         </script>
-      `, { visible: false });
+      `, { visible: false, title: "Mission Control Scanner" });
     } catch (err) {
       console.error("Failed to show UI:", err);
     }
@@ -1143,11 +1146,10 @@ function Card({ item, canMovePrev, canMoveNext, onMoveStatus, onJumpToFrame, onC
         },
         hoverStyle: BUTTON_HOVER
       },
-        h(Text, { 
+        h(Text, Object.assign({ 
           fontSize: 10, 
-          fill: "#374151",
-          href: figma.fileKey ? `https://www.figma.com/file/${figma.fileKey}?node-id=${item.nodeId}` : undefined
-        }, "🎯 Jump")
+          fill: "#374151"
+        }, figma.fileKey ? { href: `https://www.figma.com/file/${figma.fileKey}?node-id=${item.nodeId}` } : {}), "🎯 Jump")
       ),
 
       h(AutoLayout, {
