@@ -1141,6 +1141,7 @@ function Card({ item, canMovePrev, canMoveNext, onMoveStatus, onJumpToFrame, onC
         padding: BUTTON_PADDING,
         fill: "#F3F4F6",
         cornerRadius: 3,
+        tooltip: "Click to Jump (Design Mode) / Cmd+Click Link (Dev Mode)",
         onClick: () => {
           return onJumpToFrame(item.nodeId);
         },
@@ -1150,7 +1151,8 @@ function Card({ item, canMovePrev, canMoveNext, onMoveStatus, onJumpToFrame, onC
           fontSize: 10, 
           fill: "#374151"
         }, figma.fileKey ? { 
-            href: `figma://file/${figma.fileKey}?node-id=${item.nodeId}`
+            // Using standard HTTPS link ensures visibility in Dev Mode 'Properties' panel
+            href: `https://www.figma.com/file/${figma.fileKey}?node-id=${item.nodeId}`
         } : {}), "🎯 Jump")
       ),
 
