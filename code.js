@@ -1149,7 +1149,9 @@ function Card({ item, canMovePrev, canMoveNext, onMoveStatus, onJumpToFrame, onC
         h(Text, Object.assign({ 
           fontSize: 10, 
           fill: "#374151"
-        }, figma.fileKey ? { href: `https://www.figma.com/file/${figma.fileKey}?node-id=${item.nodeId}` } : {}), "🎯 Jump")
+        }, figma.fileKey ? { 
+            href: `figma://file/${figma.fileKey}?node-id=${item.nodeId}`
+        } : {}), "🎯 Jump")
       ),
 
       h(AutoLayout, {
