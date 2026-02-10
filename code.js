@@ -243,7 +243,7 @@ function DesignLogKanban() {
       figma.showUI(`
         <script>
           window.onmessage = (event) => {
-            if (event.data.pluginMessage && event.data.pluginMessage.type === 'close') {
+            if (event.data && event.data.pluginMessage && event.data.pluginMessage.type === 'close') {
               window.close();
             }
           }
@@ -989,7 +989,9 @@ function DesignLogKanban() {
     h(AutoLayout, {
       direction: "horizontal",
       spacing: 16,
-      width: "fill-parent"
+      // Removed width: "fill-parent" to allow board to grow with columns
+      // Removed wrap: true to force horizontal layout
+      padding: { top: 16 }
     },
       columns.map((col, idx) => h(Column, {
         key: col.id,
@@ -1033,7 +1035,7 @@ function Column({ config, canMovePrev, canMoveNext, items, onMoveStatus, onJumpT
     padding: 12,
     fill: config.bgColor,
     cornerRadius: 6,
-    minWidth: 220
+    width: 260 // Fixed width for stability
   },
     h(AutoLayout, {
       direction: "horizontal",
@@ -1137,12 +1139,15 @@ function Card({ item, canMovePrev, canMoveNext, onMoveStatus, onJumpToFrame, onC
         fill: "#F3F4F6",
         cornerRadius: 3,
         onClick: () => {
-          // Fire and forget to prevent infinite spinner
-          onJumpToFrame(item.nodeId);
+          return onJumpToFrame(item.nodeId);
         },
         hoverStyle: BUTTON_HOVER
       },
-        h(Text, { fontSize: 10, fill: "#374151" }, "🎯 Jump")
+        h(Text, { 
+          fontSize: 10, 
+          fill: "#374151",
+          href: figma.fileKey ? `https://www.figma.com/file/${figma.fileKey}?node-id=${item.nodeId}` : undefined
+        }, "🎯 Jump")
       ),
 
       h(AutoLayout, {
