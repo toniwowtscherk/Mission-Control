@@ -1055,7 +1055,7 @@ function DesignLogKanban() {
         onCopyLink: handleCopyLink,
         onRemoveCard: handleRemoveCard,
         handleCheckHealth: handleCheckHealth,
-        fileKey: manualFileKey ? manualFileKey : figma.fileKey
+        fileKey: manualFileKey || figma.fileKey || ''
       }))
     ),
 
@@ -1203,16 +1203,15 @@ function Card({ item, canMovePrev, canMoveNext, onMoveStatus, onJumpToFrame, onC
           onClick: () => onJumpToFrame(item.nodeId)
         }, "🎯"),
 
-        // Simple Jump link - use fileKey from props (which includes manual override)
-        // Show debug info if undefined
-        h(Text, {
+        // Simple Jump link - only add href if we have a valid fileKey
+        h(Text, Object.assign({
           fontSize: 10,
-          fill: fileKey ? "#18A0FB" : "#EF4444",
-          textDecoration: fileKey ? "underline" : "none",
-          href: fileKey 
-            ? `https://www.figma.com/file/${fileKey}?node-id=${item.nodeId.replace(':', '-')}`
-            : undefined
-        }, fileKey ? "Jump" : "⚠️ No Key")
+          fill: "#18A0FB",
+          textDecoration: "underline",
+          onClick: () => onJumpToFrame(item.nodeId)
+        }, fileKey ? {
+          href: `https://www.figma.com/file/${fileKey}?node-id=${item.nodeId.replace(':', '-')}`
+        } : {}), "Jump")
       ),
 
       h(AutoLayout, {
