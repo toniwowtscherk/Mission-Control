@@ -1067,18 +1067,21 @@
             fill: "#374151",
             onClick: () => onJumpToFrame(item.nodeId)
           }, "\u{1F3AF}"),
-          // Text is a pure link (Dev Mode optimized)
-          // mimics native Figma text links exactly by removing custom onClick handlers
-          h(Text, {
+          // Text acts as a hybrid: 
+          // - Clickable in Design Mode (via onClick)
+          // - Inspectable Link in Dev Mode (via href, if Key exists)
+          h(Text, Object.assign({
             fontSize: 10,
-            fill: "#18A0FB",
-            // Always blue to indicate link
-            textDecoration: "underline",
-            tooltip: fileKey ? `Open Frame ${item.name}` : `Save file to enable linking`,
-            // STRICT LINK ONLY: No onClick handler on the text itself. 
-            // This forces it to behave exactly like a native text layer with a link.
-            href: fileKey ? `https://www.figma.com/file/${fileKey}?node-id=${encodeURIComponent(item.nodeId)}` : "https://www.figma.com/"
-          }, "Jump")
+            fill: fileKey ? "#18A0FB" : "#9CA3AF",
+            // Blue if working link, Gray if Draft/Unconfigured
+            textDecoration: fileKey ? "underline" : "none",
+            tooltip: fileKey ? `Jump to ${item.name}` : `Link unavailable in Drafts. Publish file or use 'Fix Dev Mode Links' to configure.`,
+            // Design Mode: Always allow jumping via scroll API
+            onClick: () => onJumpToFrame(item.nodeId)
+          }, fileKey ? {
+            // Dev Mode: Only provide HREF if we have a valid key to form a real URL
+            href: `https://www.figma.com/design/${fileKey}?node-id=${encodeURIComponent(item.nodeId)}`
+          } : {}), "Jump")
         ),
         h(
           AutoLayout,
