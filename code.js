@@ -860,8 +860,8 @@
         {
           direction: "horizontal",
           spacing: 16,
-          // Removed width: "fill-parent" to allow board to grow with columns
-          // Removed wrap: true to force horizontal layout
+          // Fixed: Must be "hug-contents" horizontally to prevent collapse, but let it grow
+          width: "hug-contents",
           padding: { top: 16 }
         },
         columns.map((col, idx) => h(Column, {
@@ -1030,8 +1030,8 @@
             tooltip: `Jump to ${item.name}`,
             // Interactive in Design Mode
             onClick: () => onJumpToFrame(item.nodeId),
-            // Relative link works for both Desktop and Web, keeping contextual file reference
-            href: `?node-id=${encodeURIComponent(item.nodeId)}`
+            // Use full URL to satisfy validation, even if we fallback to just base Figma URL
+            href: figma.fileKey ? `https://www.figma.com/design/${figma.fileKey}?node-id=${encodeURIComponent(item.nodeId)}` : "https://www.figma.com/"
           }, "Jump")
         ),
         h(
