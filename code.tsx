@@ -1203,24 +1203,20 @@ function Card({ item, canMovePrev, canMoveNext, onMoveStatus, onJumpToFrame, onC
           onClick: () => onJumpToFrame(item.nodeId)
         }, "🎯"),
 
-        // Text is a pure link (Dev Mode optimized, mimics native Figma text links)
+        // Text is a pure link (Dev Mode optimized)
+        // mimics native Figma text links exactly by removing custom onClick handlers
         h(Text, {
           fontSize: 10,
-          fill: fileKey ? "#18A0FB" : "#EF4444", // Blue if linked, Red if unconfigured
-          textDecoration: fileKey ? "underline" : "none",
-          tooltip: fileKey 
-            ? `Jump to ${item.name} (Dev Mode)`
-            : `Validation Error: File Key missing. Use 'Fix Dev Mode Links' in menu.`,
+          fill: "#18A0FB", // Always blue to indicate link
+          textDecoration: "underline",
+          tooltip: fileKey ? `Open Frame ${item.name}` : `Save file to enable linking`,
           
-          // Interactive in Design Mode (Always works using Scroll API)
-          onClick: () => onJumpToFrame(item.nodeId),
-          
-          // Link for Dev Mode inspection
-          // Falls back harmlessly if no key, but signals the user visually
+          // STRICT LINK ONLY: No onClick handler on the text itself. 
+          // This forces it to behave exactly like a native text layer with a link.
           href: fileKey
-             ? `https://www.figma.com/design/${fileKey}?node-id=${encodeURIComponent(item.nodeId)}`
+             ? `https://www.figma.com/file/${fileKey}?node-id=${encodeURIComponent(item.nodeId)}`
              : "https://www.figma.com/" 
-        }, fileKey ? "Jump" : "No Link")
+        }, "Jump")
       ),
 
       h(AutoLayout, {
