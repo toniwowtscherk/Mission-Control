@@ -919,7 +919,7 @@
           onCopyLink: handleCopyLink,
           onRemoveCard: handleRemoveCard,
           handleCheckHealth,
-          fileKey: manualFileKey || figma.fileKey
+          fileKey: manualFileKey ? manualFileKey : figma.fileKey
         }))
       ),
       items.length === 0 ? h(
@@ -1068,12 +1068,13 @@
             onClick: () => onJumpToFrame(item.nodeId)
           }, "\u{1F3AF}"),
           // Simple Jump link - use fileKey from props (which includes manual override)
+          // Show debug info if undefined
           h(Text, {
             fontSize: 10,
-            fill: "#18A0FB",
-            textDecoration: "underline",
-            href: `https://www.figma.com/file/${fileKey}?node-id=${item.nodeId.replace(":", "-")}`
-          }, "Jump")
+            fill: fileKey ? "#18A0FB" : "#EF4444",
+            textDecoration: fileKey ? "underline" : "none",
+            href: fileKey ? `https://www.figma.com/file/${fileKey}?node-id=${item.nodeId.replace(":", "-")}` : void 0
+          }, fileKey ? "Jump" : "\u26A0\uFE0F No Key")
         ),
         h(
           AutoLayout,
