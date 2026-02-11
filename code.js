@@ -1030,8 +1030,8 @@
             tooltip: `Jump to ${item.name}`,
             // Interactive in Design Mode
             onClick: () => onJumpToFrame(item.nodeId),
-            // Link for Dev Mode inspection
-            href: figma.fileKey ? `https://www.figma.com/design/${figma.fileKey}?node-id=${item.nodeId}` : `https://www.figma.com/subdomain_check?node-id=${item.nodeId}`
+            // Relative link works for both Desktop and Web, keeping contextual file reference
+            href: `?node-id=${encodeURIComponent(item.nodeId)}`
           }, "Jump")
         ),
         h(

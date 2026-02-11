@@ -1154,17 +1154,15 @@ function Card({ item, canMovePrev, canMoveNext, onMoveStatus, onJumpToFrame, onC
         }, "🎯"),
 
         // Text is a pure link (Dev Mode optimized, mimics native Figma text links)
-        h(Text, { 
-          fontSize: 10, 
+        h(Text, {
+          fontSize: 10,
           fill: "#18A0FB", // Figma Blue
           textDecoration: "underline",
           tooltip: `Jump to ${item.name}`,
           // Interactive in Design Mode
           onClick: () => onJumpToFrame(item.nodeId),
-          // Link for Dev Mode inspection
-          href: figma.fileKey 
-            ? `https://www.figma.com/design/${figma.fileKey}?node-id=${item.nodeId}`
-            : `https://www.figma.com/subdomain_check?node-id=${item.nodeId}` 
+          // Relative link works for both Desktop and Web, keeping contextual file reference
+          href: `?node-id=${encodeURIComponent(item.nodeId)}`
         }, "Jump")
       ),
 
