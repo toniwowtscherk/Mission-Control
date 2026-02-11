@@ -139,6 +139,9 @@ function DesignLogKanban() {
   const [isScanning, setIsScanning] = useSyncedState('isScanning', false);
   const [scanCount, setScanCount] = useSyncedState('scanCount', 0);
   const [scannedIds, setScannedIds] = useSyncedState('scannedIds', []);
+  
+  // Manual File Key override for Drafts/Local files where figma.fileKey is undefined
+  const [manualFileKey, setManualFileKey] = useSyncedState('manualFileKey', '');
 
   // Property menu for adding frames
   usePropertyMenu(
@@ -147,6 +150,11 @@ function DesignLogKanban() {
         itemType: 'action',
         tooltip: 'Edit Columns',
         propertyName: 'editColumns',
+      },
+      {
+        itemType: 'action',
+        tooltip: 'Fix Dev Mode Links',
+        propertyName: 'fixLinks',
       },
       {
         itemType: 'separator',
@@ -174,6 +182,46 @@ function DesignLogKanban() {
         setItems([]);
         setScanCount(0);
         setIsScanning(false);
+      } else if (propertyName === 'fixLinks') {
+        return new Promise((resolve) => {
+          const html = `
+            <style>
+              body { font-family: Inter, sans-serif; padding: 16px; color: #333; }
+              input { width: 100%; padding: 8px; margin: 8px 0; border: 1px solid #ccc; border-radius: 4px; }
+              button { padding: 8px 16px; background: #2563EB; color: white; border: none; border-radius: 4px; cursor: pointer; }
+              p { font-size: 12px; line-height: 1.5; color: #666; }
+            </style>
+            <div>
+              <h3>Fix Dev Mode Links</h3>
+              <p>Since this file hasn't been published/synced yet, the internal File Key is missing. Please copy the URL from your browser address bar and paste it below so we can generate valid links.</p>
+              <input type="text" id="url" placeholder="https://www.figma.com/design/..." />
+              <button onclick="save()">Save URL</button>
+            </div>
+            <script>
+              function save() {
+                const url = document.getElementById('url').value;
+                window.parent.postMessage({pluginMessage: { type: 'set-file-url', url }}, '*');
+              }
+            </script>
+          `;
+          figma.showUI(html, { width: 300, height: 260, title: "Configure Links" });
+          figma.ui.onmessage = (msg) => {
+             if (msg.type === 'set-file-url') {
+                const url = msg.url;
+                // Try to extract key from standard figma URLs
+                // Matches: /file/KEY/ or /design/KEY/
+                const match = url.match(/(?:file|design)\/([a-zA-Z0-9]+)/);
+                if (match && match[1]) {
+                  setManualFileKey(match[1]);
+                  figma.notify("Links configured successfully!");
+                } else {
+                  figma.notify("Could not find File Key in URL. Please try again.");
+                }
+                figma.ui.close();
+             }
+             resolve();
+          };
+        });
       }
     }
   );
@@ -1006,7 +1054,8 @@ function DesignLogKanban() {
         onJumpToFrame: handleJumpToFrame,
         onCopyLink: handleCopyLink,
         onRemoveCard: handleRemoveCard,
-        handleCheckHealth: handleCheckHealth
+        handleCheckHealth: handleCheckHealth,
+        fileKey: manualFileKey || figma.fileKey
       }))
     ),
 
@@ -1029,7 +1078,7 @@ function DesignLogKanban() {
 // COLUMN COMPONENT
 // ============================================
 
-function Column({ config, canMovePrev, canMoveNext, items, onMoveStatus, onJumpToFrame, onCopyLink, onRemoveCard, handleCheckHealth }) {
+function Column({ config, canMovePrev, canMoveNext, items, onMoveStatus, onJumpToFrame, onCopyLink, onRemoveCard, handleCheckHealth, fileKey }) {
   // Config passed directly from parent
 
   return h(AutoLayout, {
@@ -1059,7 +1108,8 @@ function Column({ config, canMovePrev, canMoveNext, items, onMoveStatus, onJumpT
       onJumpToFrame: onJumpToFrame,
       onCopyLink: onCopyLink,
       onRemoveCard: onRemoveCard,
-      handleCheckHealth: handleCheckHealth
+      handleCheckHealth: handleCheckHealth,
+      fileKey: fileKey
     })),
 
     items.length === 0 ? h(AutoLayout, {
@@ -1076,7 +1126,7 @@ function Column({ config, canMovePrev, canMoveNext, items, onMoveStatus, onJumpT
 // CARD COMPONENT
 // ============================================
 
-function Card({ item, canMovePrev, canMoveNext, onMoveStatus, onJumpToFrame, onCopyLink, onRemoveCard, handleCheckHealth }) {
+function Card({ item, canMovePrev, canMoveNext, onMoveStatus, onJumpToFrame, onCopyLink, onRemoveCard, handleCheckHealth, fileKey }) {
   const isMissing = item.name.includes('🚫');
   const dateObj = new Date(item.lastModifiedAt);
   const dateStr = dateObj.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
@@ -1156,16 +1206,21 @@ function Card({ item, canMovePrev, canMoveNext, onMoveStatus, onJumpToFrame, onC
         // Text is a pure link (Dev Mode optimized, mimics native Figma text links)
         h(Text, {
           fontSize: 10,
-          fill: "#18A0FB", // Figma Blue
-          textDecoration: "underline",
-          tooltip: `Jump to ${item.name}`,
-          // Interactive in Design Mode
+          fill: fileKey ? "#18A0FB" : "#EF4444", // Blue if linked, Red if unconfigured
+          textDecoration: fileKey ? "underline" : "none",
+          tooltip: fileKey 
+            ? `Jump to ${item.name} (Dev Mode)`
+            : `Validation Error: File Key missing. Use 'Fix Dev Mode Links' in menu.`,
+          
+          // Interactive in Design Mode (Always works using Scroll API)
           onClick: () => onJumpToFrame(item.nodeId),
-            // Use full URL to satisfy validation, even if we fallback to just base Figma URL
-            href: figma.fileKey
-               ? `https://www.figma.com/design/${figma.fileKey}?node-id=${encodeURIComponent(item.nodeId)}`
-               : "https://www.figma.com/" 
-          }, "Jump")
+          
+          // Link for Dev Mode inspection
+          // Falls back harmlessly if no key, but signals the user visually
+          href: fileKey
+             ? `https://www.figma.com/design/${fileKey}?node-id=${encodeURIComponent(item.nodeId)}`
+             : "https://www.figma.com/" 
+        }, fileKey ? "Jump" : "No Link")
       ),
 
       h(AutoLayout, {
