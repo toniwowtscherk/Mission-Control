@@ -1067,21 +1067,13 @@
             fill: "#374151",
             onClick: () => onJumpToFrame(item.nodeId)
           }, "\u{1F3AF}"),
-          // Text acts as a hybrid: 
-          // - Clickable in Design Mode (via onClick)
-          // - Inspectable Link in Dev Mode (via href, if Key exists)
-          h(Text, Object.assign({
+          // Simple Jump link - always generate URL, let Figma handle validation
+          h(Text, {
             fontSize: 10,
-            fill: fileKey ? "#18A0FB" : "#9CA3AF",
-            // Blue if working link, Gray if Draft/Unconfigured
-            textDecoration: fileKey ? "underline" : "none",
-            tooltip: fileKey ? `Jump to ${item.name}` : `Link unavailable in Drafts. Publish file or use 'Fix Dev Mode Links' to configure.`,
-            // Design Mode: Always allow jumping via scroll API
-            onClick: () => onJumpToFrame(item.nodeId)
-          }, fileKey ? {
-            // Dev Mode: Only provide HREF if we have a valid key to form a real URL
-            href: `https://www.figma.com/design/${fileKey}?node-id=${encodeURIComponent(item.nodeId)}`
-          } : {}), "Jump")
+            fill: "#18A0FB",
+            textDecoration: "underline",
+            href: `https://www.figma.com/file/${figma.fileKey}?node-id=${item.nodeId.replace(":", "-")}`
+          }, "Jump")
         ),
         h(
           AutoLayout,
