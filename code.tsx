@@ -1158,10 +1158,13 @@ function Card({ item, canMovePrev, canMoveNext, onMoveStatus, onJumpToFrame, onC
           fontSize: 10, 
           fill: "#18A0FB", // Figma Blue
           textDecoration: "underline",
-          tooltip: "Open in Editor",
+          tooltip: `Jump to ${item.name}`,
+          // Interactive in Design Mode
+          onClick: () => onJumpToFrame(item.nodeId),
+          // Link for Dev Mode inspection
           href: figma.fileKey 
-            ? `https://www.figma.com/file/${figma.fileKey}?node-id=${item.nodeId}`
-            : `https://www.figma.com/`
+            ? `https://www.figma.com/design/${figma.fileKey}?node-id=${item.nodeId}`
+            : `https://www.figma.com/subdomain_check?node-id=${item.nodeId}` 
         }, "Jump")
       ),
 
