@@ -1067,12 +1067,12 @@
             fill: "#374151",
             onClick: () => onJumpToFrame(item.nodeId)
           }, "\u{1F3AF}"),
-          // Simple Jump link - always generate URL, let Figma handle validation
+          // Simple Jump link - use fileKey from props (which includes manual override)
           h(Text, {
             fontSize: 10,
             fill: "#18A0FB",
             textDecoration: "underline",
-            href: `https://www.figma.com/file/${figma.fileKey}?node-id=${item.nodeId.replace(":", "-")}`
+            href: `https://www.figma.com/file/${fileKey}?node-id=${item.nodeId.replace(":", "-")}`
           }, "Jump")
         ),
         h(
