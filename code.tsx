@@ -131,7 +131,7 @@ let globalSelectionHandler = null;
 // Keep track of scanned nodes globally to avoid re-render data loss
 let globalScannedNodes = [];
 
-function DesignLogKanban() {
+function MissionControl() {
   const [items, setItems] = useSyncedState('items', []);
   
   // Column State
@@ -966,7 +966,7 @@ function DesignLogKanban() {
       },
         h(Text, { fontSize: 24, fontWeight: "bold" }, "🎯 Mission Control"),
         h(Text, { fontSize: 12, fill: "#6B7280" }, 
-          `DesignLog Kanban • ${items.length} frame${items.length !== 1 ? 's' : ''} tracked`
+          `${items.length} frame${items.length !== 1 ? 's' : ''} tracked`
         ),
         h(Text, {
           fontSize: 11,
@@ -1225,4 +1225,4 @@ function Card({ item, canMovePrev, canMoveNext, onMoveStatus, onJumpToFrame, onC
 // WIDGET REGISTRATION
 // ============================================
 
-widget.register(DesignLogKanban);
+widget.register(MissionControl);

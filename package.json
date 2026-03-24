@@ -1,7 +1,7 @@
 {
-  "name": "designlog-kanban-widget",
+  "name": "mission-control",
   "version": "4.0.0",
-  "description": "DesignLog Kanban - Mission Control for Figma frames",
+  "description": "Mission Control for Figma frames",
   "main": "code.js",
   "scripts": {
     "build": "esbuild code.tsx --bundle --outfile=code.js --target=es2020",

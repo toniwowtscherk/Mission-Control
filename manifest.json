@@ -1,6 +1,6 @@
 {
-  "name": "DesignLog Kanban",
-  "id": "designlog-kanban-mission-control",
+  "name": "Mission Control",
+  "id": "mission-control",
   "api": "1.0.0",
   "main": "code.js",
   "ui": "",

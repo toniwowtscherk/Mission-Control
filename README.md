@@ -1,4 +1,4 @@
-# Mission Control Kanban Widget
+# Mission Control
 
 Mission Control is a Figma widget that turns key frames, sections, components, and instances into a lightweight kanban board on the canvas. It is designed as a file-level navigation layer for teammates who need to find the right design resource quickly without digging through every page.
 

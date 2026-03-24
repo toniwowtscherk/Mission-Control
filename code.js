@@ -92,7 +92,7 @@
   var resolveScanningPromise = null;
   var globalSelectionHandler = null;
   var globalScannedNodes = [];
-  function DesignLogKanban() {
+  function MissionControl() {
     const [items, setItems] = useSyncedState("items", []);
     const [columns, setColumns] = useSyncedState("columns", DEFAULT_COLUMNS);
     const [isEditingColumns, setIsEditingColumns] = useSyncedState("isEditingColumns", false);
@@ -830,7 +830,7 @@
           h(
             Text,
             { fontSize: 12, fill: "#6B7280" },
-            `DesignLog Kanban \u2022 ${items.length} frame${items.length !== 1 ? "s" : ""} tracked`
+            `${items.length} frame${items.length !== 1 ? "s" : ""} tracked`
           ),
           h(
             Text,
@@ -1098,5 +1098,5 @@
       )
     );
   }
-  widget.register(DesignLogKanban);
+  widget.register(MissionControl);
 })();
