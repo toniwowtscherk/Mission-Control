@@ -5,7 +5,6 @@ const {
   Input,
   useSyncedState, 
   usePropertyMenu,
-  useEffect,
   h
 } = widget;
 
@@ -98,12 +97,18 @@ function generatePastelColor(hex) {
     return `#${toHex(newR)}${toHex(newG)}${toHex(newB)}`;
 }
 
-function detectLinkProvider(url) {
-  if (url.includes('jira')) return '🔵';
-  if (url.includes('linear')) return '◆';
-  if (url.includes('github')) return '🐙';
-  if (url.includes('gitlab')) return '🦊';
-  return '🔗';
+function normalizeNodeIdForUrl(nodeId) {
+  return (nodeId || '').replace(/:/g, '-');
+}
+
+function getPageForNode(node) {
+  let currentNode = node;
+
+  while (currentNode && currentNode.type !== 'PAGE') {
+    currentNode = currentNode.parent;
+  }
+
+  return currentNode && currentNode.type === 'PAGE' ? currentNode : null;
 }
 
 async function getNodeById(nodeId) {
@@ -128,8 +133,6 @@ let globalScannedNodes = [];
 
 function DesignLogKanban() {
   const [items, setItems] = useSyncedState('items', []);
-  const [selectedCard, setSelectedCard] = useSyncedState('selectedCard', null);
-  const [refreshKey, setRefreshKey] = useSyncedState('refreshKey', 0);
   
   // Column State
   const [columns, setColumns] = useSyncedState('columns', DEFAULT_COLUMNS);
@@ -139,22 +142,14 @@ function DesignLogKanban() {
   const [isScanning, setIsScanning] = useSyncedState('isScanning', false);
   const [scanCount, setScanCount] = useSyncedState('scanCount', 0);
   const [scannedIds, setScannedIds] = useSyncedState('scannedIds', []);
-  
-  // Manual File Key override for Drafts/Local files where figma.fileKey is undefined
-  const [manualFileKey, setManualFileKey] = useSyncedState('manualFileKey', '');
 
-  // Property menu for adding frames
+  // Property menu actions
   usePropertyMenu(
     [
       {
         itemType: 'action',
         tooltip: 'Edit Columns',
         propertyName: 'editColumns',
-      },
-      {
-        itemType: 'action',
-        tooltip: 'Fix Dev Mode Links',
-        propertyName: 'fixLinks',
       },
       {
         itemType: 'separator',
@@ -177,66 +172,14 @@ function DesignLogKanban() {
       if (propertyName === 'editColumns') {
         setIsEditingColumns(!isEditingColumns);
       } else if (propertyName === 'refresh') {
-        setRefreshKey(refreshKey + 1);
+        await checkFrameHealth();
       } else if (propertyName === 'clearAll') {
         setItems([]);
         setScanCount(0);
         setIsScanning(false);
-      } else if (propertyName === 'fixLinks') {
-        return new Promise((resolve) => {
-          const html = `
-            <style>
-              body { font-family: Inter, sans-serif; padding: 16px; color: #333; }
-              input { width: 100%; padding: 8px; margin: 8px 0; border: 1px solid #ccc; border-radius: 4px; }
-              button { padding: 8px 16px; background: #2563EB; color: white; border: none; border-radius: 4px; cursor: pointer; }
-              p { font-size: 12px; line-height: 1.5; color: #666; }
-            </style>
-            <div>
-              <h3>Fix Dev Mode Links</h3>
-              <p>Since this file hasn't been published/synced yet, the internal File Key is missing. Please copy the URL from your browser address bar and paste it below so we can generate valid links.</p>
-              <input type="text" id="url" placeholder="https://www.figma.com/design/..." />
-              <button onclick="save()">Save URL</button>
-            </div>
-            <script>
-              function save() {
-                const url = document.getElementById('url').value;
-                window.parent.postMessage({pluginMessage: { type: 'set-file-url', url }}, '*');
-              }
-            </script>
-          `;
-          figma.showUI(html, { width: 300, height: 260, title: "Configure Links" });
-          figma.ui.onmessage = (msg) => {
-             if (msg.type === 'set-file-url') {
-                const url = msg.url;
-                // Try to extract key from standard figma URLs
-                // Matches: /file/KEY/ or /design/KEY/
-                const match = url.match(/(?:file|design)\/([a-zA-Z0-9]+)/);
-                if (match && match[1]) {
-                  setManualFileKey(match[1]);
-                  figma.notify("Links configured successfully!");
-                } else {
-                  figma.notify("Could not find File Key in URL. Please try again.");
-                }
-                figma.ui.close();
-             }
-             resolve();
-          };
-        });
       }
     }
   );
-
-  // Health check on load
-  useEffect(() => {
-    // Only verify health, do not reset interaction state automatically
-    // as it creates conflicts with active selection modes during re-renders.
-    
-    // NOTE: We only want to run health check on explicit request or very rarely.
-    // Running it on every render causes massive performance issues and loop crashes.
-    // We will rely on manual Refresh via property menu for now.
-    
-    // checkFrameHealth(); // DISABLED AUTOMATIC CHECK TO PREVENT CRASHES
-  });
 
   async function startScanning() {
     // If a previous scanning promise exists, resolve it first to clean up
@@ -365,10 +308,13 @@ function DesignLogKanban() {
            // Safe hash generation
            let hash = "hash-error"; 
            try { hash = generateFrameHash(node); } catch(e) { console.error("Hash error", e); }
+           const page = getPageForNode(node);
 
            const newItem = {
              id: `item-${timestamp}-${Math.random().toString(36).substr(2, 9)}`,
              nodeId: node.id,
+             pageId: page ? page.id : '',
+             pageName: page ? page.name : '',
              name: node.name || "Untitled",
              status: 'RESEARCH',
              snapshot: hash,
@@ -456,9 +402,19 @@ function DesignLogKanban() {
         }
       } else {
         // Update name if changed
-        if (node.name !== item.name && !item.name.includes('🚫')) {
+        const page = getPageForNode(node);
+        const nextPageId = page ? page.id : item.pageId;
+        const nextPageName = page ? page.name : item.pageName;
+        const needsUpdate =
+          (node.name !== item.name && !item.name.includes('🚫')) ||
+          nextPageId !== item.pageId ||
+          nextPageName !== item.pageName;
+
+        if (needsUpdate) {
           updatedItems[i] = Object.assign({}, item, {
-            name: node.name
+            name: !item.name.includes('🚫') ? node.name : item.name,
+            pageId: nextPageId,
+            pageName: nextPageName
           });
           hasChanges = true;
         }
@@ -467,7 +423,12 @@ function DesignLogKanban() {
 
     if (hasChanges) {
       setItems(updatedItems);
+      figma.notify('Statuses refreshed');
+    } else {
+      figma.notify('Everything is up to date');
     }
+
+    return Promise.resolve();
   }
 
   async function handleMoveStatus(itemId, direction) {
@@ -505,15 +466,8 @@ function DesignLogKanban() {
     if (newStatusIndex === currentStatusIndex) return Promise.resolve();
 
     const newStatus = columns[newStatusIndex].id;
-    // REMOVED await getNodeById to prevent "Widget not registered" error on state update.
-    // Ideally we would update the hash here, but preventing the crash is prioritized.
-    // const node = await getNodeById(item.nodeId);
-    
-    // Check hash based on existing snapshot only for now to keep it synchronous
     let hash = item.snapshot;
-    // if (node) { ... }
 
-    // Safety check for user
     let userName = 'Unknown';
     try {
         if (figma.currentUser) {
@@ -556,14 +510,14 @@ function DesignLogKanban() {
   }
 
   function handleCopyLink(nodeId) {
-    return new Promise(resolve => {
+    return new Promise<void>((resolve) => {
         try {
-            const fileKey = figma.fileKey; 
             let textToCopy = "";
             let successMessage = "";
+            const fileKey = figma.fileKey;
 
             if (fileKey) {
-                textToCopy = `https://www.figma.com/file/${fileKey}?node-id=${nodeId}`;
+                textToCopy = `https://www.figma.com/design/${fileKey}?node-id=${normalizeNodeIdForUrl(nodeId)}`;
                 successMessage = "Link copied to clipboard 🔗";
             } else {
                 textToCopy = nodeId;
@@ -630,20 +584,38 @@ function DesignLogKanban() {
     });
   }
 
-  async function handleJumpToFrame(nodeId) {
+  async function handleJumpToFrame(item) {
     try {
-        const node = await getNodeById(nodeId);
+        const node = await getNodeById(item.nodeId);
         
         if (!node) {
         figma.notify('⚠️ Frame not found - it may have been deleted');
         return Promise.resolve();
         }
 
-        figma.viewport.scrollAndZoomIntoView([node]);
-        figma.notify('Navigated to frame');
+        const targetPage = getPageForNode(node);
+        const currentPageId = figma.currentPage ? figma.currentPage.id : '';
+
+        if (targetPage && targetPage.id !== currentPageId) {
+          await figma.setCurrentPageAsync(targetPage);
+        }
+
+        const sceneNode = node as SceneNode;
+
+        if (figma.currentPage && 'selection' in figma.currentPage) {
+          figma.currentPage.selection = [sceneNode];
+        }
+
+        figma.viewport.scrollAndZoomIntoView([sceneNode]);
+        if (targetPage && targetPage.id !== currentPageId) {
+          figma.notify(`Navigated to ${targetPage.name}`);
+        } else {
+          figma.notify('Navigated to frame');
+        }
         return Promise.resolve();
     } catch (e) {
         console.error("Jump Error", e);
+        figma.notify("Couldn't navigate to that frame");
         return Promise.resolve();
     }
   }
@@ -675,15 +647,16 @@ function DesignLogKanban() {
         
         if (!node) {
           figma.notify('⚠️ Frame is missing (Deleted?)');
-          // Optional: Mark as missing in UI?
           return Promise.resolve();
         }
 
         const currentHash = generateFrameHash(node);
         const nameChanged = node.name !== item.name;
+        const page = getPageForNode(node);
+        const pageChanged = (page ? page.id : item.pageId) !== item.pageId || (page ? page.name : item.pageName) !== item.pageName;
         const isModified = currentHash !== item.snapshot || nameChanged;
 
-        if (isModified) {
+        if (isModified || pageChanged) {
            // Sync update
             let userName = 'Unknown';
             try { if (figma.currentUser) userName = figma.currentUser.name; } catch(e) {}
@@ -691,6 +664,8 @@ function DesignLogKanban() {
 
             const updatedItem = Object.assign({}, item, {
                 name: node.name,
+                pageId: page ? page.id : item.pageId,
+                pageName: page ? page.name : item.pageName,
                 snapshot: currentHash,
                 lastModifiedBy: userName,
                 lastModifiedAt: timestamp
@@ -806,7 +781,6 @@ function DesignLogKanban() {
                         }
                     }, h(Text, { fontSize: 16 }, "↓")) : h(AutoLayout, { width: 22 }),
 
-                    // Color Picker (Rich UI)
                     h(AutoLayout, {
                         width: 24, height: 24,
                         cornerRadius: 12,
@@ -814,7 +788,7 @@ function DesignLogKanban() {
                         stroke: "#E5E7EB",
                         strokeWidth: 1,
                         onClick: () => {
-                             return new Promise((resolve) => {
+                             return new Promise<void>((resolve) => {
                                  const currentHex = col.color;
                                  const presets = [
                                     '#9333EA', '#2563EB', '#06B6D4', '#16A34A', 
@@ -920,8 +894,6 @@ function DesignLogKanban() {
                                          newCols[idx] = Object.assign({}, col, { color: newColor, bgColor: newBg });
                                          setColumns(newCols);
                                          
-                                         figma.closePlugin(); // Wait, this closes the widget entirely? No, figma.closePlugin() closes the plugin. For widgets, figma.ui.close() or figma.closePlugin() behaves similarly in some contexts?
-                                         // For widgets, `figma.ui.close()` is correct to close the UI window.
                                          figma.ui.close(); 
                                      }
                                      resolve();
@@ -995,6 +967,13 @@ function DesignLogKanban() {
         h(Text, { fontSize: 24, fontWeight: "bold" }, "🎯 Mission Control"),
         h(Text, { fontSize: 12, fill: "#6B7280" }, 
           `DesignLog Kanban • ${items.length} frame${items.length !== 1 ? 's' : ''} tracked`
+        ),
+        h(Text, {
+          fontSize: 11,
+          fill: "#9CA3AF",
+          width: 320
+        },
+          "Jump works in Design Mode only. Switch from Dev/Inspect back to Design Mode to use it."
         )
       ),
 
@@ -1054,8 +1033,7 @@ function DesignLogKanban() {
         onJumpToFrame: handleJumpToFrame,
         onCopyLink: handleCopyLink,
         onRemoveCard: handleRemoveCard,
-        handleCheckHealth: handleCheckHealth,
-        fileKey: manualFileKey || figma.fileKey || ''
+        handleCheckHealth: handleCheckHealth
       }))
     ),
 
@@ -1078,7 +1056,7 @@ function DesignLogKanban() {
 // COLUMN COMPONENT
 // ============================================
 
-function Column({ config, canMovePrev, canMoveNext, items, onMoveStatus, onJumpToFrame, onCopyLink, onRemoveCard, handleCheckHealth, fileKey }) {
+function Column({ config, canMovePrev, canMoveNext, items, onMoveStatus, onJumpToFrame, onCopyLink, onRemoveCard, handleCheckHealth }) {
   // Config passed directly from parent
 
   return h(AutoLayout, {
@@ -1108,8 +1086,7 @@ function Column({ config, canMovePrev, canMoveNext, items, onMoveStatus, onJumpT
       onJumpToFrame: onJumpToFrame,
       onCopyLink: onCopyLink,
       onRemoveCard: onRemoveCard,
-      handleCheckHealth: handleCheckHealth,
-      fileKey: fileKey
+      handleCheckHealth: handleCheckHealth
     })),
 
     items.length === 0 ? h(AutoLayout, {
@@ -1126,7 +1103,7 @@ function Column({ config, canMovePrev, canMoveNext, items, onMoveStatus, onJumpT
 // CARD COMPONENT
 // ============================================
 
-function Card({ item, canMovePrev, canMoveNext, onMoveStatus, onJumpToFrame, onCopyLink, onRemoveCard, handleCheckHealth, fileKey }) {
+function Card({ item, canMovePrev, canMoveNext, onMoveStatus, onJumpToFrame, onCopyLink, onRemoveCard, handleCheckHealth }) {
   const isMissing = item.name.includes('🚫');
   const dateObj = new Date(item.lastModifiedAt);
   const dateStr = dateObj.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
@@ -1152,14 +1129,6 @@ function Card({ item, canMovePrev, canMoveNext, onMoveStatus, onJumpToFrame, onC
         fill: isMissing ? "#DC2626" : "#111827",
         width: "fill-parent"
       }, item.name),
-      
-      item.externalLink ? h(AutoLayout, {
-        direction: "horizontal",
-        spacing: 4
-      },
-        h(Text, { fontSize: 11 }, detectLinkProvider(item.externalLink)),
-        h(Text, { fontSize: 10, fill: "#6B7280" }, "Linked")
-      ) : null
     ),
 
     h(AutoLayout, {
@@ -1194,24 +1163,19 @@ function Card({ item, canMovePrev, canMoveNext, onMoveStatus, onJumpToFrame, onC
         hoverStyle: BUTTON_HOVER,
         spacing: 4,
         direction: 'horizontal',
-        verticalAlignItems: 'center'
+        verticalAlignItems: 'center',
+        onClick: () => onJumpToFrame(item)
       },
-        // Icon triggers fast local jump (Design Mode optimized)
         h(Text, { 
           fontSize: 10, 
-          fill: "#374151",
-          onClick: () => onJumpToFrame(item.nodeId)
+          fill: "#374151"
         }, "🎯"),
 
-        // Simple Jump link - only add href if we have a valid fileKey
-        h(Text, Object.assign({
+        h(Text, {
           fontSize: 10,
-          fill: "#18A0FB",
-          textDecoration: "underline",
-          onClick: () => onJumpToFrame(item.nodeId)
-        }, fileKey ? {
-          href: `https://www.figma.com/file/${fileKey}?node-id=${item.nodeId.replace(':', '-')}`
-        } : {}), "Jump")
+          fontWeight: "medium",
+          fill: "#374151"
+        }, "Jump")
       ),
 
       h(AutoLayout, {
